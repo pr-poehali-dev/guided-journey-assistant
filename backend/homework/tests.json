@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "GET without id returns 400",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 400,
+      "expectedBody": {"error": "id required"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

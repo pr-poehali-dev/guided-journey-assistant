@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from "react-image-crop"
 import "react-image-crop/dist/ReactCrop.css"
@@ -6,11 +7,13 @@ import { Button } from "@/components/ui/button"
 import Icon from "@/components/ui/icon"
 import type { SectionProps } from "@/types"
 
+const HOMEWORK_URL = "https://functions.poehali.dev/b5589a6a-83ed-4752-8b8d-544eb4cb0e4c"
+
 function centerAspectCrop(width: number, height: number) {
   return centerCrop(makeAspectCrop({ unit: '%', width: 90 }, width / height, width, height), width, height)
 }
 
-function getCroppedImg(image: HTMLImageElement, crop: Crop): Promise<string> {
+function getCroppedBase64(image: HTMLImageElement, crop: Crop): Promise<string> {
   const canvas = document.createElement('canvas')
   const scaleX = image.naturalWidth / image.width
   const scaleY = image.naturalHeight / image.height
@@ -24,17 +27,23 @@ function getCroppedImg(image: HTMLImageElement, crop: Crop): Promise<string> {
   const ctx = canvas.getContext('2d')!
   ctx.scale(pixelRatio, pixelRatio)
   ctx.drawImage(image, cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY, 0, 0, cropW * scaleX, cropH * scaleY)
-  return new Promise((resolve) => canvas.toBlob((blob) => resolve(URL.createObjectURL(blob!)), 'image/jpeg', 0.95))
+  return new Promise((resolve) => canvas.toBlob((blob) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.readAsDataURL(blob!)
+  }, 'image/jpeg', 0.9))
 }
 
 export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, showUpload, onScrollToLast }: SectionProps) {
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const [src, setSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState<Crop>()
   const [cropping, setCropping] = useState(false)
   const [croppedPreview, setCroppedPreview] = useState<string | null>(null)
-  const [sent, setSent] = useState(false)
+  const [croppedBase64, setCroppedBase64] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -52,19 +61,29 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
 
   const handleCropDone = async () => {
     if (imgRef.current && crop) {
-      const url = await getCroppedImg(imgRef.current, crop)
-      setCroppedPreview(url)
+      const b64 = await getCroppedBase64(imgRef.current, crop)
+      setCroppedBase64(b64)
+      setCroppedPreview(b64)
       setCropping(false)
     }
   }
 
   const handleReset = () => {
-    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null); setSent(false)
+    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null); setCroppedBase64(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleSend = () => {
-    setSent(true)
+  const handleSend = async () => {
+    if (!croppedBase64) return
+    setSending(true)
+    const res = await fetch(HOMEWORK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo: croppedBase64 }),
+    })
+    const data = await res.json()
+    setSending(false)
+    navigate(`/status?id=${data.id}`)
   }
 
   return (
@@ -130,25 +149,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             onChange={handleFileChange}
           />
 
-          {sent && (
-            <div className="flex flex-col items-start gap-3">
-              <div className="flex items-center gap-3 text-white">
-                <Icon name="CheckCircle" size={32} className="text-[#FF4D00]" />
-                <span className="text-xl font-semibold">Задание отправлено!</span>
-              </div>
-              <p className="text-neutral-400">Мы скоро свяжемся с тобой и поможем разобраться.</p>
-              <Button
-                variant="outline"
-                size="lg"
-                className="mt-2 border-white/30 text-white bg-transparent hover:bg-white/10"
-                onClick={handleReset}
-              >
-                Отправить ещё одно
-              </Button>
-            </div>
-          )}
-
-          {!sent && !src && !croppedPreview && (
+          {!src && !croppedPreview && (
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/30 rounded-2xl p-10 text-white hover:border-[#FF4D00] hover:bg-white/5 transition-all cursor-pointer"
@@ -159,7 +160,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             </button>
           )}
 
-          {!sent && cropping && src && (
+          {cropping && src && (
             <div className="flex flex-col gap-3">
               <p className="text-neutral-400 text-sm">Выдели нужную часть задания</p>
               <div className="rounded-xl overflow-hidden max-h-64">
@@ -193,7 +194,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             </div>
           )}
 
-          {!sent && croppedPreview && (
+          {!cropping && croppedPreview && (
             <div className="flex flex-col gap-4">
               <img src={croppedPreview} alt="Обрезанное ДЗ" className="rounded-xl max-h-48 object-cover border border-white/20" />
               <div className="flex gap-3">
@@ -201,9 +202,10 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
                   size="lg"
                   className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] transition-colors flex-1"
                   onClick={handleSend}
+                  disabled={sending}
                 >
-                  <Icon name="Send" size={18} className="mr-2" />
-                  Отправить задание
+                  <Icon name={sending ? "Loader" : "Send"} size={18} className={`mr-2 ${sending ? "animate-spin" : ""}`} />
+                  {sending ? "Отправляю..." : "Отправить задание"}
                 </Button>
                 <Button
                   variant="outline"
