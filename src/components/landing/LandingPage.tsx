@@ -67,6 +67,7 @@ export default function LandingPage() {
             key={section.id}
             {...section}
             isActive={index === activeSection}
+            onScrollToLast={() => handleNavClick(sections.length - 1)}
           />
         ))}
       </div>

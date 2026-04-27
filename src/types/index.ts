@@ -12,4 +12,5 @@ export interface Section {
 
 export interface SectionProps extends Section {
   isActive: boolean
+  onScrollToLast?: () => void
 }

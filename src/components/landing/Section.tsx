@@ -27,13 +27,14 @@ function getCroppedImg(image: HTMLImageElement, crop: Crop): Promise<string> {
   return new Promise((resolve) => canvas.toBlob((blob) => resolve(URL.createObjectURL(blob!)), 'image/jpeg', 0.95))
 }
 
-export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, showUpload }: SectionProps) {
+export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, showUpload, onScrollToLast }: SectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const [src, setSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState<Crop>()
   const [cropping, setCropping] = useState(false)
   const [croppedPreview, setCroppedPreview] = useState<string | null>(null)
+  const [sent, setSent] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -58,8 +59,12 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
   }
 
   const handleReset = () => {
-    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null)
+    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null); setSent(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleSend = () => {
+    setSent(true)
   }
 
   return (
@@ -103,6 +108,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             variant="outline"
             size="lg"
             className="text-[#FF4D00] bg-transparent border-[#FF4D00] hover:bg-[#FF4D00] hover:text-black transition-colors"
+            onClick={() => onScrollToLast?.()}
           >
             {buttonText}
           </Button>
@@ -124,7 +130,25 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             onChange={handleFileChange}
           />
 
-          {!src && !croppedPreview && (
+          {sent && (
+            <div className="flex flex-col items-start gap-3">
+              <div className="flex items-center gap-3 text-white">
+                <Icon name="CheckCircle" size={32} className="text-[#FF4D00]" />
+                <span className="text-xl font-semibold">Задание отправлено!</span>
+              </div>
+              <p className="text-neutral-400">Мы скоро свяжемся с тобой и поможем разобраться.</p>
+              <Button
+                variant="outline"
+                size="lg"
+                className="mt-2 border-white/30 text-white bg-transparent hover:bg-white/10"
+                onClick={handleReset}
+              >
+                Отправить ещё одно
+              </Button>
+            </div>
+          )}
+
+          {!sent && !src && !croppedPreview && (
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/30 rounded-2xl p-10 text-white hover:border-[#FF4D00] hover:bg-white/5 transition-all cursor-pointer"
@@ -135,7 +159,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             </button>
           )}
 
-          {cropping && src && (
+          {!sent && cropping && src && (
             <div className="flex flex-col gap-3">
               <p className="text-neutral-400 text-sm">Выдели нужную часть задания</p>
               <div className="rounded-xl overflow-hidden max-h-64">
@@ -169,13 +193,14 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             </div>
           )}
 
-          {croppedPreview && (
+          {!sent && croppedPreview && (
             <div className="flex flex-col gap-4">
               <img src={croppedPreview} alt="Обрезанное ДЗ" className="rounded-xl max-h-48 object-cover border border-white/20" />
               <div className="flex gap-3">
                 <Button
                   size="lg"
                   className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] transition-colors flex-1"
+                  onClick={handleSend}
                 >
                   <Icon name="Send" size={18} className="mr-2" />
                   Отправить задание
