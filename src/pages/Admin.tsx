@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import Icon from "@/components/ui/icon"
 
 const ADMIN_URL = "https://functions.poehali.dev/78ef07e4-847f-4402-a2e6-689a5fff9509"
+const ADMIN_PASSWORD = "admin1234"
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Новая",
@@ -25,7 +27,47 @@ interface HWRequest {
   created_at: string
 }
 
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState(false)
+
+  const submit = () => {
+    if (password === ADMIN_PASSWORD) {
+      sessionStorage.setItem("admin_auth", "1")
+      onLogin()
+    } else {
+      setError(true)
+      setPassword("")
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-6">
+      <div className="w-full max-w-sm flex flex-col gap-5">
+        <div className="flex items-center gap-3 mb-2">
+          <Icon name="Lock" size={24} className="text-[#FF4D00]" />
+          <h1 className="text-xl font-bold text-white">Вход в админку</h1>
+        </div>
+        <Input
+          type="password"
+          placeholder="Введи пароль"
+          value={password}
+          onChange={(e) => { setPassword(e.target.value); setError(false) }}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          className="bg-white/5 border-white/10 text-white placeholder:text-neutral-500"
+          autoFocus
+        />
+        {error && <p className="text-red-400 text-sm -mt-2">Неверный пароль</p>}
+        <Button className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] w-full" onClick={submit}>
+          Войти
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function Admin() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("admin_auth") === "1")
   const [requests, setRequests] = useState<HWRequest[]>([])
   const [selected, setSelected] = useState<HWRequest | null>(null)
   const [solution, setSolution] = useState("")
@@ -41,7 +83,7 @@ export default function Admin() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (authed) load() }, [authed])
 
   const openRequest = (r: HWRequest) => {
     setSelected(r)
@@ -62,6 +104,13 @@ export default function Admin() {
     load()
   }
 
+  const logout = () => {
+    sessionStorage.removeItem("admin_auth")
+    setAuthed(false)
+  }
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10">
       <div className="max-w-4xl mx-auto">
@@ -70,6 +119,9 @@ export default function Admin() {
           <h1 className="text-2xl font-bold">Заявки на помощь с ДЗ</h1>
           <button onClick={load} className="ml-auto text-neutral-400 hover:text-white transition-colors">
             <Icon name="RefreshCw" size={18} />
+          </button>
+          <button onClick={logout} className="text-neutral-400 hover:text-white transition-colors" title="Выйти">
+            <Icon name="LogOut" size={18} />
           </button>
         </div>
 
