@@ -25,6 +25,7 @@ interface HWRequest {
   status: string
   solution: string | null
   created_at: string
+  subject: string | null
 }
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -140,7 +141,10 @@ export default function Admin() {
             >
               <img src={r.photo_url} alt="ДЗ" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-neutral-400">{new Date(r.created_at).toLocaleString("ru")}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-neutral-400">{new Date(r.created_at).toLocaleString("ru")}</p>
+                  {r.subject && <span className="text-xs bg-white/10 text-white px-2 py-0.5 rounded-full">{r.subject}</span>}
+                </div>
                 <p className={`text-sm font-medium mt-1 ${STATUS_COLORS[r.status] || "text-white"}`}>
                   {STATUS_LABELS[r.status] || r.status}
                 </p>
@@ -164,6 +168,12 @@ export default function Admin() {
               </button>
             </div>
 
+            {selected.subject && (
+              <div className="flex items-center gap-2">
+                <Icon name="BookOpen" size={16} className="text-neutral-400" />
+                <span className="text-sm text-white font-medium">{selected.subject}</span>
+              </div>
+            )}
             <img src={selected.photo_url} alt="ДЗ" className="rounded-xl max-h-64 object-contain w-full border border-white/10" />
 
             <div className="flex flex-col gap-2">

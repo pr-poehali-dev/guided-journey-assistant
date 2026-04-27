@@ -9,6 +9,12 @@ import type { SectionProps } from "@/types"
 
 const HOMEWORK_URL = "https://functions.poehali.dev/b5589a6a-83ed-4752-8b8d-544eb4cb0e4c"
 
+const SUBJECTS = [
+  "Математика", "Алгебра", "Геометрия", "Физика", "Химия",
+  "Биология", "История", "География", "Русский язык", "Литература",
+  "Английский язык", "Информатика", "Обществознание", "Другое",
+]
+
 function centerAspectCrop(width: number, height: number) {
   return centerCrop(makeAspectCrop({ unit: '%', width: 90 }, width / height, width, height), width, height)
 }
@@ -43,6 +49,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
   const [cropping, setCropping] = useState(false)
   const [croppedPreview, setCroppedPreview] = useState<string | null>(null)
   const [croppedBase64, setCroppedBase64] = useState<string | null>(null)
+  const [subject, setSubject] = useState("")
   const [sending, setSending] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,17 +76,18 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
   }
 
   const handleReset = () => {
-    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null); setCroppedBase64(null)
+    setSrc(null); setCrop(undefined); setCropping(false)
+    setCroppedPreview(null); setCroppedBase64(null); setSubject("")
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleSend = async () => {
-    if (!croppedBase64) return
+    if (!croppedBase64 || !subject) return
     setSending(true)
     const res = await fetch(HOMEWORK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ photo: croppedBase64 }),
+      body: JSON.stringify({ photo: croppedBase64, subject }),
     })
     const data = await res.json()
     setSending(false)
@@ -138,7 +146,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
           initial={{ opacity: 0, y: 30 }}
           animate={isActive ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="mt-10 flex flex-col gap-4 max-w-md w-full"
+          className="mt-10 flex flex-col gap-4 max-w-lg w-full"
         >
           <input
             ref={fileInputRef}
@@ -196,13 +204,33 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
 
           {!cropping && croppedPreview && (
             <div className="flex flex-col gap-4">
-              <img src={croppedPreview} alt="Обрезанное ДЗ" className="rounded-xl max-h-48 object-cover border border-white/20" />
+              <img src={croppedPreview} alt="Обрезанное ДЗ" className="rounded-xl max-h-40 object-cover border border-white/20" />
+
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-neutral-400">Выбери предмет</p>
+                <div className="flex flex-wrap gap-2">
+                  {SUBJECTS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSubject(s)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
+                        subject === s
+                          ? "border-[#FF4D00] bg-[#FF4D00]/10 text-[#FF4D00]"
+                          : "border-white/10 text-neutral-400 hover:border-white/30 hover:text-white"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   size="lg"
-                  className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] transition-colors flex-1"
+                  className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] transition-colors flex-1 disabled:opacity-40"
                   onClick={handleSend}
-                  disabled={sending}
+                  disabled={sending || !subject}
                 >
                   <Icon name={sending ? "Loader" : "Send"} size={18} className={`mr-2 ${sending ? "animate-spin" : ""}`} />
                   {sending ? "Отправляю..." : "Отправить задание"}
@@ -225,6 +253,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
                   <Icon name="X" size={18} />
                 </Button>
               </div>
+              {!subject && <p className="text-xs text-neutral-500">Выбери предмет, чтобы отправить</p>}
             </div>
           )}
         </motion.div>
