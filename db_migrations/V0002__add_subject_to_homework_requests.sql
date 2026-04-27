@@ -1,0 +1,1 @@
+ALTER TABLE homework_requests ADD COLUMN subject TEXT;
