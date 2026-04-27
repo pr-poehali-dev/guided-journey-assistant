@@ -1,22 +1,65 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
+import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from "react-image-crop"
+import "react-image-crop/dist/ReactCrop.css"
 import { Button } from "@/components/ui/button"
 import Icon from "@/components/ui/icon"
 import type { SectionProps } from "@/types"
 
+function centerAspectCrop(width: number, height: number) {
+  return centerCrop(makeAspectCrop({ unit: '%', width: 90 }, width / height, width, height), width, height)
+}
+
+function getCroppedImg(image: HTMLImageElement, crop: Crop): Promise<string> {
+  const canvas = document.createElement('canvas')
+  const scaleX = image.naturalWidth / image.width
+  const scaleY = image.naturalHeight / image.height
+  const pixelRatio = window.devicePixelRatio
+  const cropX = (crop.x / 100) * image.width
+  const cropY = (crop.y / 100) * image.height
+  const cropW = (crop.width / 100) * image.width
+  const cropH = (crop.height / 100) * image.height
+  canvas.width = cropW * scaleX * pixelRatio
+  canvas.height = cropH * scaleY * pixelRatio
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(pixelRatio, pixelRatio)
+  ctx.drawImage(image, cropX * scaleX, cropY * scaleY, cropW * scaleX, cropH * scaleY, 0, 0, cropW * scaleX, cropH * scaleY)
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(URL.createObjectURL(blob!)), 'image/jpeg', 0.95))
+}
+
 export default function Section({ id, title, subtitle, content, isActive, showButton, buttonText, showUpload }: SectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const [src, setSrc] = useState<string | null>(null)
+  const [crop, setCrop] = useState<Crop>()
+  const [cropping, setCropping] = useState(false)
+  const [croppedPreview, setCroppedPreview] = useState<string | null>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setFileName(file.name)
       const reader = new FileReader()
-      reader.onload = (ev) => setPreview(ev.target?.result as string)
+      reader.onload = (ev) => { setSrc(ev.target?.result as string); setCropping(true); setCroppedPreview(null) }
       reader.readAsDataURL(file)
     }
+  }
+
+  const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { width, height } = e.currentTarget
+    setCrop(centerAspectCrop(width, height))
+  }, [])
+
+  const handleCropDone = async () => {
+    if (imgRef.current && crop) {
+      const url = await getCroppedImg(imgRef.current, crop)
+      setCroppedPreview(url)
+      setCropping(false)
+    }
+  }
+
+  const handleReset = () => {
+    setSrc(null); setCrop(undefined); setCropping(false); setCroppedPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
@@ -70,7 +113,7 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
           initial={{ opacity: 0, y: 30 }}
           animate={isActive ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="mt-10 flex flex-col gap-4 max-w-md"
+          className="mt-10 flex flex-col gap-4 max-w-md w-full"
         >
           <input
             ref={fileInputRef}
@@ -80,10 +123,55 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
             className="hidden"
             onChange={handleFileChange}
           />
-          {preview ? (
+
+          {!src && !croppedPreview && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/30 rounded-2xl p-10 text-white hover:border-[#FF4D00] hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <Icon name="Camera" size={40} className="text-[#FF4D00]" />
+              <span className="text-lg font-medium">Сделай фото или загрузи файл</span>
+              <span className="text-sm text-neutral-400">JPG, PNG — любой формат</span>
+            </button>
+          )}
+
+          {cropping && src && (
+            <div className="flex flex-col gap-3">
+              <p className="text-neutral-400 text-sm">Выдели нужную часть задания</p>
+              <div className="rounded-xl overflow-hidden max-h-64">
+                <ReactCrop crop={crop} onChange={setCrop} style={{ maxHeight: '16rem' }}>
+                  <img
+                    ref={imgRef}
+                    src={src}
+                    onLoad={onImageLoad}
+                    style={{ maxHeight: '16rem', width: '100%', objectFit: 'contain' }}
+                  />
+                </ReactCrop>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  size="lg"
+                  className="bg-[#FF4D00] text-black hover:bg-[#ff6a2a] transition-colors flex-1"
+                  onClick={handleCropDone}
+                >
+                  <Icon name="Crop" size={18} className="mr-2" />
+                  Применить обрезку
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-white/30 text-white bg-transparent hover:bg-white/10"
+                  onClick={handleReset}
+                >
+                  <Icon name="X" size={18} />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {croppedPreview && (
             <div className="flex flex-col gap-4">
-              <img src={preview} alt="Превью ДЗ" className="rounded-xl max-h-48 object-cover border border-white/20" />
-              <p className="text-neutral-400 text-sm truncate">{fileName}</p>
+              <img src={croppedPreview} alt="Обрезанное ДЗ" className="rounded-xl max-h-48 object-cover border border-white/20" />
               <div className="flex gap-3">
                 <Button
                   size="lg"
@@ -95,22 +183,22 @@ export default function Section({ id, title, subtitle, content, isActive, showBu
                 <Button
                   variant="outline"
                   size="lg"
+                  title="Обрезать заново"
                   className="border-white/30 text-white bg-transparent hover:bg-white/10"
-                  onClick={() => { setPreview(null); setFileName(null) }}
+                  onClick={() => { setCropping(true); setCroppedPreview(null) }}
+                >
+                  <Icon name="Crop" size={18} />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-white/30 text-white bg-transparent hover:bg-white/10"
+                  onClick={handleReset}
                 >
                   <Icon name="X" size={18} />
                 </Button>
               </div>
             </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/30 rounded-2xl p-10 text-white hover:border-[#FF4D00] hover:bg-white/5 transition-all cursor-pointer"
-            >
-              <Icon name="Camera" size={40} className="text-[#FF4D00]" />
-              <span className="text-lg font-medium">Сделай фото или загрузи файл</span>
-              <span className="text-sm text-neutral-400">JPG, PNG — любой формат</span>
-            </button>
           )}
         </motion.div>
       )}
